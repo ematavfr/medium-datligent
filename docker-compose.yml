@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: medium-db
+    environment:
+      POSTGRES_USER: medium_user
+      POSTGRES_PASSWORD: medium_password
+      POSTGRES_DB: medium_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - medium-network
+    ports:
+      - "6052:5432"
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U medium_user -d medium_db" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    container_name: medium-backend
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://medium_user:medium_password@db:5432/medium_db
+    networks:
+      - medium-network
+    ports:
+      - "6051:8000"
+
+  frontend:
+    build: ./frontend
+    container_name: medium-frontend
+    depends_on:
+      - backend
+    networks:
+      - medium-network
+    ports:
+      - "6050:3000"
+
+  dbupdater:
+    build: ./dbupdater
+    container_name: medium-dbupdater
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://medium_user:medium_password@db:5432/medium_db
+    volumes:
+      - ./updates:/app/updates
+      - ./processed:/app/processed
+    networks:
+      - medium-network
+
+networks:
+  medium-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
