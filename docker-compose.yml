@@ -58,6 +58,47 @@ services:
     networks:
       - medium-network
 
+  # Communicate with Large Language Model via Docker Model Runner
+  llm:
+    provider:
+      type: model
+      options:
+        model: ${MODEL_NAME:-gemma3}
+    networks:
+      - medium-network
+
+  # Communicate with Local Docker MCP Servers
+  gateway-local:
+    image: docker/mcp-gateway
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command:
+      - --transport=streaming
+      - --port=9011
+      - --servers=duckduckgo
+    networks:
+      - medium-network
+
+  ingestor:
+    build:
+      context: ./ingestion
+      dockerfile: Dockerfile.ingestor
+    container_name: medium-ingestor
+    depends_on:
+      db:
+        condition: service_healthy
+      llm:
+        condition: service_started
+    env_file: .env
+    environment:
+      - SCHEDULE_TIME=08:30
+      - RUN_ON_STARTUP=true
+      - BASE_URL=http://host.docker.internal:11434/v1
+    volumes:
+      - ./updates:/app/updates
+    networks:
+      - medium-network
+
 networks:
   medium-network:
     driver: bridge

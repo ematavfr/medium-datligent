@@ -1,6 +1,6 @@
 import React from 'react';
 
-const ArticleCard = ({ article, isSelected, onSelect }) => {
+const ArticleCard = ({ article, isSelected, onSelect, onAuthorClick }) => {
     return (
         <div
             onClick={() => onSelect(article.id)}
@@ -38,7 +38,17 @@ const ArticleCard = ({ article, isSelected, onSelect }) => {
             </h3>
 
             <div className="text-xs text-gray-500 mb-2 flex justify-between">
-                <span>{article.author}</span>
+                <a
+                    href="#"
+                    className="text-blue-600 hover:text-blue-dark hover:underline cursor-pointer font-medium"
+                    onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (onAuthorClick) onAuthorClick(article.author);
+                    }}
+                >
+                    {article.author}
+                </a>
                 <span>{article.publication_date}</span>
             </div>
 

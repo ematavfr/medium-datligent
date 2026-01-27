@@ -1,32 +1,18 @@
-# OS generated files
-.DS_Store
-
-# Environment variables
 .env
-.env.README
-.env.backup*
-
-# Logs and temporary files
+.DS_Store
+.venv/
+__pycache__/
+node_modules/
+.next/
+processed/
+updates/
+*.pyc
+*.log
+.gemini/
+.claude/
+.env.backup.*
 Medium-console.log
 Medium.png
 Medium.txt
-*.log
-
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-venv/
-ingestion/venv/
-
-# Node.js
-node_modules/
-frontend/node_modules/
-
-# Processed data (as requested)
-processed/
-updates/
-
-# SQLite (if any)
-*.sqlite
-*.db
+aurhor-specs
+tag-management-specs

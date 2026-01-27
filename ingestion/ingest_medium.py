@@ -108,6 +108,12 @@ def scrape_article(url):
         og_desc = soup.find("meta", property="og:description")
         description = og_desc["content"] if og_desc else ""
         
+        # Extract Body Text for better tag extraction
+        body_text = ""
+        # Medium articles usually have content in <p>, <h2>, <h3> tags
+        content_elements = soup.find_all(['p', 'h1', 'h2', 'h3', 'li'])
+        body_text = " ".join([elem.get_text() for elem in content_elements])
+        
         og_image = soup.find("meta", property="og:image")
         image_url = og_image["content"] if og_image else "https://placehold.co/600x400"
         
@@ -120,31 +126,84 @@ def scrape_article(url):
         if reading_time_element:
             reading_time = reading_time_element.strip()
         
-        # Tags - Try article:tag first, then keywords
+        # Tags - Try article:tag first
         tags = []
         article_tags = soup.find_all("meta", property="article:tag")
         if article_tags:
             tags = [t["content"] for t in article_tags]
         
-        if not tags:
+        # If no meta tags, or to supplement, use content analysis
+        if len(tags) < 3:
             keywords_meta = soup.find("meta", attrs={"name": "keywords"})
             if keywords_meta:
-                tags = keywords_meta["content"].split(",")
+                meta_keywords = [t.strip() for t in keywords_meta["content"].split(",") if t.strip()]
+                for k in meta_keywords:
+                    if k not in tags:
+                        tags.append(k)
         
-        tags = [t.strip() for t in tags if t.strip()]
-        
-        # Fallback: Extract keywords from title if no tags found
-        if not tags:
-            common_words = {"the", "a", "an", "in", "on", "at", "for", "to", "of", "and", "or", "with", "by", "is", "are", "was", "were", "be", "been", "how", "what", "why", "when", "where", "who", "which", "vs", "versus", "compare", "comparison", "guide", "tutorial", "best", "top", "review", "introduction", "intro"}
-            words = title.replace(":", "").replace("-", "").split()
-            tags = [w for w in words if w.lower() not in common_words and len(w) > 3]
-            tags = tags[:5] # Limit to 5 tags
+        # If still few tags, extract from content (title + description + body)
+        if len(tags) < 3:
+            full_text = f"{title} {description} {body_text}"
+            common_words = {"the", "a", "an", "in", "on", "at", "for", "to", "of", "and", "or", "with", "by", "is", "are", "was", "were", "be", "been", "how", "what", "why", "when", "where", "who", "which", "vs", "versus", "compare", "comparison", "guide", "tutorial", "best", "top", "review", "introduction", "intro", "everything", "need", "know", "about", "using", "your", "more", "most", "some", "any", "running", "getting", "started", "with", "from", "article", "medium", "published"}
             
+            # Replace common punctuation with space
+            clean_text = full_text.lower()
+            for char in ":-(),.?!\"'":
+                clean_text = clean_text.replace(char, " ")
+            
+            words = clean_text.split()
+            
+            # Tech keywords to prioritize
+            tech_keywords = {"python", "java", "javascript", "react", "vue", "angular", "node", "express", "fastapi", "django", "flask", "ai", "ml", "llm", "gpt", "deep", "learning", "data", "science", "docker", "kubernetes", "cloud", "aws", "azure", "gcp", "sql", "postgresql", "mongodb", "redis", "devops", "security", "web", "mobile", "ios", "android", "startup", "business", "tech", "container", "serverless", "microservices", "frontend", "backend", "fullstack", "rag", "langchain", "openai", "claude", "gemini"}
+            
+            word_counts = {}
+            for w in words:
+                if w not in common_words and len(w) > 3:
+                    word_counts[w] = word_counts.get(w, 0) + 1
+            
+            # Prioritize tech keywords if they appear
+            extracted_tech = []
+            for kw in tech_keywords:
+                if kw in words:
+                    label = kw.upper() if kw in ["ai", "ml", "llm", "gpt", "aws", "gcp", "ios", "sql", "rag"] else kw.capitalize()
+                    if label not in tags:
+                        extracted_tech.append((label, word_counts.get(kw, 0)))
+            
+            # Sort tech keywords by frequency
+            extracted_tech.sort(key=lambda x: x[1], reverse=True)
+            for et, count in extracted_tech:
+                if et not in tags:
+                    tags.append(et)
+                if len(tags) >= 5: break
+            
+            # If still not enough, add most frequent words
+            if len(tags) < 3:
+                frequent_words = sorted(word_counts.items(), key=lambda x: x[1], reverse=True)
+                for fw, count in frequent_words:
+                    label = fw.capitalize()
+                    if label not in tags:
+                        tags.append(label)
+                    if len(tags) >= 5: break
+
+        # Final cleanup and limit
+        tags = [t.strip() for t in tags if t.strip()]
+        tags = list(dict.fromkeys(tags))[:5] # Deduplicate and limit to 5
         if not tags:
-            tags = ["Newsletter"]
+            tags = ["Tech"]
         
         # Translate summary if we have one
         summary = description
+        
+        # Memory recommendation: A 3-line limit is preferred. 
+        # Truncate summary to roughly 3 lines or ~250 characters before translation
+        if summary and len(summary) > 250:
+            # Try to find a sentence end near 250 characters
+            near_end = summary[:300].rfind('.')
+            if near_end != -1 and near_end > 150:
+                summary = summary[:near_end+1]
+            else:
+                summary = summary[:247] + "..."
+
         if DEEPL_API_KEY and summary:
             try:
                 translator = deepl.Translator(DEEPL_API_KEY)

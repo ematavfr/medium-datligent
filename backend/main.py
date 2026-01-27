@@ -26,7 +26,8 @@ def read_root():
 @app.get("/articles", response_model=List[Article])
 def get_articles(
     date: Optional[str] = None,
-    tag: Optional[str] = None
+    tag: Optional[str] = None,
+    author: Optional[str] = None
 ):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -38,9 +39,17 @@ def get_articles(
         query += " AND publication_date = %s"
         params.append(date)
         
+    if author:
+        query += " AND author = %s"
+        params.append(author)
+        
     if tag:
-        query += " AND %s = ANY(tags)"
-        params.append(tag)
+        # Split tags by comma and clean them
+        tags_list = [t.strip() for t in tag.split(',') if t.strip()]
+        if tags_list:
+            # Use && operator for 'OR' search between arrays (has elements in common)
+            query += " AND tags && %s"
+            params.append(tags_list)
         
     query += " ORDER BY publication_date DESC, id DESC"
     
