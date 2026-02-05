@@ -1,0 +1,17 @@
+sequenceDiagram
+    participant S as ingest_standardized.py
+    participant G as Gmail API
+    participant Sc as Scraper
+    participant L as LLM (gemma3)
+    participant U as updates/ (SQL)
+
+    S->>G: Search for Medium Daily Digest (ON target_date)
+    G-->>S: Return matching emails
+    S->>S: Extract Medium article links
+    loop For each Medium link
+        S->>Sc: Scrape article content
+        Sc-->>S: Return text, author, image
+        S->>L: Request French summary + tags
+        L-->>S: Return JSON metadata
+    end
+    S->>U: Generate and save .sql file
